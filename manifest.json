@@ -1,0 +1,10 @@
+{
+  "name": "Carpenter Material Calculator",
+  "short_name": "Carpenter Calc",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f6f8",
+  "theme_color": "#111827",
+  "description": "Free CFT, square feet, running feet and estimate calculator for carpenters.",
+  "icons": []
+}
