@@ -1,1 +1,169 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Carpenter Material Calculator</title></head><body><h1>Carpenter Material Calculator</h1></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="description" content="Free carpenter material calculator for CFT, square feet, running feet and estimates.">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23111827'/%3E%3Cpath d='M25 70L70 25M48 27l25 25' stroke='%23f59e0b' stroke-width='9' stroke-linecap='round'/%3E%3C/svg%3E">
+  <title>Carpenter Material Calculator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">CARPENTER TOOLS</p>
+        <h1>Material Calculator</h1>
+      </div>
+      <button id="authBtn" class="icon-btn" type="button" title="Sign in">Sign in</button>
+    </header>
+
+    <main>
+      <section id="calculatorScreen" class="screen active">
+        <div class="hero-card">
+          <div>
+            <span class="label">TOTAL CFT</span>
+            <strong id="totalCft">0.00</strong>
+          </div>
+          <div class="hero-cost">
+            <span class="label">TOTAL COST</span>
+            <strong id="totalCost">₹0</strong>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">CALCULATOR</p>
+            <h2 id="calculatorTitle">Wood CFT</h2>
+          </div>
+          <select id="calcType" aria-label="Calculator type">
+            <option value="cft">CFT</option>
+            <option value="sqft">Square Feet</option>
+            <option value="rft">Running Feet</option>
+          </select>
+        </div>
+
+        <div id="cftForm" class="card form-card">
+          <div class="grid-2">
+            <label>Length<input id="length" type="number" min="0" step="0.01" placeholder="0"></label>
+            <label>Width<input id="width" type="number" min="0" step="0.01" placeholder="0"></label>
+            <label>Thickness<input id="thickness" type="number" min="0" step="0.01" placeholder="0"></label>
+            <label>Quantity<input id="quantity" type="number" min="1" step="1" value="1"></label>
+          </div>
+          <div class="unit-row">
+            <label>Unit
+              <select id="dimensionUnit">
+                <option value="inch">Inches</option>
+                <option value="feet">Feet</option>
+                <option value="cm">Centimeters</option>
+                <option value="mm">Millimeters</option>
+              </select>
+            </label>
+            <label>Rate / CFT<input id="rate" type="number" min="0" step="0.01" placeholder="800"></label>
+          </div>
+        </div>
+
+        <div id="sqftForm" class="card form-card hidden">
+          <div class="grid-2">
+            <label>Length<input id="sqLength" type="number" min="0" step="0.01" placeholder="0"></label>
+            <label>Width<input id="sqWidth" type="number" min="0" step="0.01" placeholder="0"></label>
+          </div>
+          <div class="unit-row">
+            <label>Unit
+              <select id="sqUnit"><option value="feet">Feet</option><option value="inch">Inches</option></select>
+            </label>
+            <label>Quantity<input id="sqQuantity" type="number" min="1" step="1" value="1"></label>
+          </div>
+        </div>
+
+        <div id="rftForm" class="card form-card hidden">
+          <div class="grid-2">
+            <label>Length<input id="rfLength" type="number" min="0" step="0.01" placeholder="0"></label>
+            <label>Quantity<input id="rfQuantity" type="number" min="1" step="1" value="1"></label>
+          </div>
+          <div class="unit-row">
+            <label>Unit
+              <select id="rfUnit"><option value="feet">Feet</option><option value="inch">Inches</option></select>
+            </label>
+            <label>Rate / RFT<input id="rfRate" type="number" min="0" step="0.01" placeholder="100"></label>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="calculateBtn" class="btn primary" type="button">Calculate</button>
+          <button id="saveBtn" class="btn secondary" type="button">Save Calculation</button>
+          <button id="clearBtn" class="btn ghost" type="button">Clear</button>
+        </div>
+
+        <div class="card result-card">
+          <div class="result-line"><span>Material</span><strong id="resultMaterial">Wood</strong></div>
+          <div class="result-line"><span>Calculated Area / Length</span><strong id="resultMeasure">0.00</strong></div>
+          <div class="result-line"><span>Calculated CFT</span><strong id="resultCft">0.00 CFT</strong></div>
+          <div class="result-line"><span>Rate</span><strong id="resultRate">₹0</strong></div>
+          <div class="result-line total"><span>Total</span><strong id="resultTotal">₹0</strong></div>
+        </div>
+      </section>
+
+      <section id="historyScreen" class="screen">
+        <div class="section-head">
+          <div><p class="eyebrow">SAVED WORK</p><h2>History</h2></div>
+          <button id="refreshHistoryBtn" class="small-btn" type="button">Refresh</button>
+        </div>
+        <div class="search-wrap"><input id="historySearch" type="search" placeholder="Search job or material"></div>
+        <div id="historyList" class="stack"></div>
+      </section>
+
+      <section id="estimateScreen" class="screen">
+        <div class="section-head"><div><p class="eyebrow">QUOTATION</p><h2>Estimate</h2></div></div>
+        <div class="card form-card">
+          <label>Customer Name<input id="customerName" placeholder="Customer name"></label>
+          <label>Job Name<input id="jobName" placeholder="Main Door"></label>
+          <label>Notes<textarea id="estimateNotes" rows="3" placeholder="Material or job notes"></textarea></label>
+          <div class="grid-2">
+            <label>Total CFT<input id="estimateCft" type="number" min="0" step="0.01" placeholder="0.00"></label>
+            <label>Rate / CFT<input id="estimateRate" type="number" min="0" step="0.01" placeholder="800"></label>
+          </div>
+          <div class="estimate-total"><span>Estimated Total</span><strong id="estimateTotal">₹0</strong></div>
+          <div class="actions">
+            <button id="saveEstimateBtn" class="btn primary" type="button">Save Estimate</button>
+            <button id="clearEstimateBtn" class="btn ghost" type="button">Clear</button>
+          </div>
+        </div>
+        <div id="estimateList" class="stack"></div>
+      </section>
+
+      <section id="settingsScreen" class="screen">
+        <div class="section-head"><div><p class="eyebrow">APP</p><h2>Settings</h2></div></div>
+        <div class="card settings-card">
+          <div class="setting"><div><strong>Account</strong><span id="accountStatus">Not signed in</span></div><button id="settingsAuthBtn" class="small-btn" type="button">Sign in</button></div>
+          <div class="setting"><div><strong>Currency</strong><span>Indian Rupee (₹)</span></div></div>
+          <div class="setting"><div><strong>Data</strong><span>Calculations and estimates are saved to Firebase when signed in.</span></div></div>
+          <div class="setting"><div><strong>Version</strong><span>1.0.0</span></div></div>
+        </div>
+        <div id="setupNotice" class="card notice hidden"></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="nav-item active" data-screen="calculatorScreen"><span>⌗</span><small>Calculator</small></button>
+      <button class="nav-item" data-screen="historyScreen"><span>↺</span><small>History</small></button>
+      <button class="nav-item" data-screen="estimateScreen"><span>▤</span><small>Estimate</small></button>
+      <button class="nav-item" data-screen="settingsScreen"><span>⚙</span><small>Settings</small></button>
+    </nav>
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+  <dialog id="editDialog">
+    <form method="dialog" class="dialog-card">
+      <div class="section-head"><h2>Edit Calculation</h2><button value="cancel" class="icon-btn">×</button></div>
+      <input id="editId" type="hidden">
+      <label>Job / Material<input id="editMaterial"></label>
+      <label>Rate<input id="editRate" type="number" min="0" step="0.01"></label>
+      <div class="actions"><button id="editSaveBtn" class="btn primary" value="default">Save Changes</button></div>
+    </form>
+  </dialog>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
