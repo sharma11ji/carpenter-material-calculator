@@ -1,0 +1,18 @@
+{
+  "functions": {
+    "source": "functions"
+  },
+  "hosting": {
+    "public": ".",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "/api/analyzeMeasurement",
+        "function": {
+          "functionId": "analyzeMeasurement",
+          "region": "asia-south1"
+        }
+      }
+    ]
+  }
+}
