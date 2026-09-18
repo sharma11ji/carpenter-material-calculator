@@ -114,7 +114,23 @@ $("historyList").addEventListener("click",async e=>{
   if(b.dataset.action==="delete"){if(!confirm("Delete this saved job?"))return;try{await deleteDoc(doc(db,"users",currentUser.uid,"calculations",item.id));toast("Deleted");loadHistory();}catch(err){toast("Delete failed");}}
   if(b.dataset.action==="edit"){editingHistoryId=item.id;$("editId").value=item.id;$("editMaterial").value=item.jobName||item.material||"Job";$("editRate").value=item.items?.[0]?.rate||item.rate||0;$("editDialog").showModal();}
 });
-$("editSaveBtn").addEventListener("click",async e=>{e.preventDefault();if(!currentUser||!editingHistoryId)return;try{await updateDoc(doc(db,"users",currentUser.uid,"calculations",editingHistoryId),{jobName:$("editMaterial").value.trim()||"Carpenter Job",updatedAt:serverTimestamp()});$("editDialog").close();toast("Updated");loadHistory();}catch(err){toast("Update failed");}});
+$("editSaveBtn").addEventListener("click",async e=>{e.preventDefault();if(!currentUser||!editingHistoryId)return;try{
+    const ref=doc(db,"users",currentUser.uid,"calculations",editingHistoryId);
+    const snap=historyData.find(x=>x.id===editingHistoryId);
+    const newName=$("editMaterial").value.trim()||"Carpenter Job";
+    const newRate=num("editRate");
+    const updates={jobName:newName,updatedAt:serverTimestamp()};
+    if(snap?.items?.length){
+      const items=snap.items.map((item,i)=>i===0?{...item,rate:newRate,total:Number((item.cft||0)*newRate+(item.sqft||0)*newRate+(item.rft||0)*newRate)}:item);
+      updates.items=items;
+      updates.total=Number(items.reduce((a,x)=>a+Number(x.total||0),0).toFixed(2));
+    }else{
+      updates.rate=newRate;
+      updates.total=Number(((snap?.cft||0)*newRate).toFixed(2));
+    }
+    await updateDoc(ref,updates);
+    $("editDialog").close();toast("Updated");loadHistory();
+  }catch(err){toast("Update failed");}});
 
 function renderBill(){
   $("invoiceDate").textContent=new Date().toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});
