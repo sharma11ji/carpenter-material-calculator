@@ -1,19 +1,24 @@
 # Carpenter Material Calculator
 
-A mobile-first, free carpenter calculator with CFT, Square Feet, Running Feet, Estimates, Firebase Google Login, cloud History, PWA support, and a simple English interface.
+Mobile-first carpenter calculator with Firebase cloud history, multiple material items, cut wood, round wood, plywood/flush door, running feet, billing and PDF-ready printing.
 
 ## Features
 
-- Wood CFT calculator: Length × Width × Thickness × Quantity ÷ 1728 when dimensions are inches.
-- Feet, inches, centimeters and millimeters conversion for CFT.
-- Square Feet and Running Feet calculators.
-- Rate and total-cost calculation.
-- Firebase Authentication with Google.
-- Cloud History per user: save, view, edit and delete.
-- Estimates with customer, job, notes, CFT, rate and total.
-- Searchable history.
+- Cut Wood / Size Wood CFT calculator.
+- Round Wood / Log calculator using diameter or girth/circumference.
+- Plywood / Flush Door / Sheet square-feet calculator.
+- Running Feet calculator.
+- Imperial + metric unit conversion.
+- Multiple items in one job.
+- Item-wise quantity, measurement, rate and amount.
+- Customer name, job name and notes.
+- Firebase Google Login.
+- Cloud History with search, view, edit and delete.
+- Bill / Invoice preview.
+- Print / Save PDF using the phone/browser print dialog.
+- Share Bill using the device share sheet when supported.
 - PWA/offline app shell.
-- Firestore security rules included.
+- Firestore rules included.
 - No paid API.
 
 ## Firebase setup
@@ -22,26 +27,22 @@ A mobile-first, free carpenter calculator with CFT, Square Feet, Running Feet, E
 2. Enable Authentication -> Google.
 3. Create Firestore Database.
 4. Add a Web App in Firebase Project Settings.
-5. Copy the Firebase web config into `app.js` where `firebaseConfig` is defined.
-6. Publish the included `firestore.rules` in Firebase Console -> Firestore Database -> Rules.
-7. Add your deployed GitHub/Firebase Hosting domain under Authentication -> Settings -> Authorized domains.
+5. Copy the Firebase web config into `app.js`.
+6. Publish `firestore.rules` in Firebase Console -> Firestore Database -> Rules.
+7. Add your GitHub Pages domain under Authentication -> Settings -> Authorized domains.
 
-## Important
+## Data
 
-The calculator works without Firebase configuration, but cloud History and Estimates require Firebase configuration and Google sign-in.
-
-## Suggested Firebase data structure
+Saved jobs are stored under:
 
 `users/{uid}/calculations/{calculationId}`
 
-`users/{uid}/estimates/{estimateId}`
+Each job contains customer, job name, notes, item list, CFT, square feet and total amount.
 
-Each user can access only their own documents because of the included Firestore rules.
+## PDF
 
-## Deploy
-
-This project is plain HTML/CSS/JavaScript and can be hosted as static files. Firebase Hosting, GitHub Pages, Netlify or another static host can serve it.
+Open Bill, then tap **Print / Save PDF**. On Android Chrome, choose **Save as PDF** in the print dialog.
 
 ## Version
 
-1.0.0
+2.0.0
