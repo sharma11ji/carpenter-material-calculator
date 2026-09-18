@@ -132,6 +132,66 @@ $("editSaveBtn").addEventListener("click",async e=>{e.preventDefault();if(!curre
     $("editDialog").close();toast("Updated");loadHistory();
   }catch(err){toast("Update failed");}});
 
+
+/* ---------- Gemini AI Scan ---------- */
+let aiDraftItems=[];
+async function prepareImage(file){
+  const dataUrl=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file);});
+  const img=new Image();img.src=dataUrl;await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;});
+  const max=1600,scale=Math.min(1,max/Math.max(img.width,img.height)),canvas=document.createElement("canvas");
+  canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));
+  canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+  const compressed=canvas.toDataURL("image/jpeg",0.82);return {base64:compressed.split(",")[1],mimeType:"image/jpeg",preview:compressed};
+}
+function showAiStatus(message,type){const e=$("aiStatus");e.innerHTML=message;e.classList.remove("hidden");e.dataset.type=type||"info";}
+function hideAiStatus(){$("aiStatus").classList.add("hidden");}
+function aiField(v){return v===null||v===undefined||v===""?"":String(v);}
+function normalizeAiItem(x){
+  const type=["cut","round","sheet","rft"].includes(x.calculationType)?x.calculationType:"cut",f=x.fields||{};
+  return {type,name:x.material||"Scanned Material",length:f.length??null,width:f.width??null,thickness:f.thickness??null,size:f.diameter??f.girth??null,roundMode:f.girth!=null?"girth":"diameter",quantity:f.quantity||1,unit:f.unit||"inch",rate:f.rate||0,confidence:Number(x.confidence||0),missingFields:Array.isArray(x.missingFields)?x.missingFields:[],needsConfirmation:Boolean(x.needsConfirmation)};
+}
+function renderAiResults(){
+  const w=$("aiResultItems");if(!aiDraftItems.length){w.innerHTML='<div class="empty">No measurements found.</div>';return;}
+  w.innerHTML=aiDraftItems.map((x,i)=>{
+    let fields="";
+    if(x.type==="cut")fields='<label>Length<input data-ai="'+i+'" data-field="length" type="number" step="0.01" value="'+aiField(x.length)+'"></label><label>Width<input data-ai="'+i+'" data-field="width" type="number" step="0.01" value="'+aiField(x.width)+'"></label><label>Thickness<input data-ai="'+i+'" data-field="thickness" type="number" step="0.01" value="'+aiField(x.thickness)+'"></label>';
+    if(x.type==="round")fields='<label>'+(x.roundMode==="girth"?"Girth / Circumference":"Diameter")+'<input data-ai="'+i+'" data-field="size" type="number" step="0.01" value="'+aiField(x.size)+'"></label><label>Length<input data-ai="'+i+'" data-field="length" type="number" step="0.01" value="'+aiField(x.length)+'"></label>';
+    if(x.type==="sheet")fields='<label>Length<input data-ai="'+i+'" data-field="length" type="number" step="0.01" value="'+aiField(x.length)+'"></label><label>Width<input data-ai="'+i+'" data-field="width" type="number" step="0.01" value="'+aiField(x.width)+'"></label>';
+    if(x.type==="rft")fields='<label>Length<input data-ai="'+i+'" data-field="length" type="number" step="0.01" value="'+aiField(x.length)+'"></label>';
+    const units=["inch","feet","cm","mm","meter"].map(u=>'<option value="'+u+'" '+(x.unit===u?"selected":"")+'>'+u+"</option>").join("");
+    return '<article class="ai-item"><div class="history-top"><div><strong>'+esc(x.name||"Material")+'</strong><div class="muted">'+labelType(x.type)+" • "+(x.confidence?Math.round(x.confidence*100)+"% confidence":"Review required")+'</div></div></div><div class="grid-2 ai-grid">'+fields+'<label>Quantity<input data-ai="'+i+'" data-field="quantity" type="number" min="1" step="1" value="'+aiField(x.quantity||1)+'"></label><label>Unit<select data-ai="'+i+'" data-field="unit">'+units+'</select></label><label>Rate<input data-ai="'+i+'" data-field="rate" type="number" min="0" step="0.01" value="'+aiField(x.rate||0)+'"></label></div>'+(x.missingFields?.length?'<div class="ai-warning">Missing: '+esc(x.missingFields.join(", "))+"</div>":"")+(x.needsConfirmation?'<div class="ai-warning">Please verify this item before adding it.</div>':"")+"</article>";
+  }).join("");
+}
+function validateAiItem(x){if(x.type==="cut")return Number(x.length)>0&&Number(x.width)>0&&Number(x.thickness)>0&&Number(x.quantity)>0;if(x.type==="round")return Number(x.length)>0&&Number(x.size)>0&&Number(x.quantity)>0;return Number(x.length)>0&&(x.type==="rft"||Number(x.width)>0)&&Number(x.quantity)>0;}
+function aiItemToCalculated(x){
+  const unit=x.unit||"inch",Q=Math.max(1,Number(x.quantity)||1);let cft=0,sqft=0,rft=0,rate=Number(x.rate)||0,details={};
+  if(x.type==="cut"){cft=toInches(Number(x.length),unit)*toInches(Number(x.width),unit)*toInches(Number(x.thickness),unit)*Q/1728;details={length:Number(x.length),width:Number(x.width),thickness:Number(x.thickness),quantity:Q,unit};}
+  else if(x.type==="round"){const L=toFeet(Number(x.length),unit),S=toFeet(Number(x.size),unit),d=x.roundMode==="girth"?S/Math.PI:S;cft=Math.PI*Math.pow(d,2)/4*L*Q;details={length:Number(x.length),size:Number(x.size),quantity:Q,unit,roundMode:x.roundMode};}
+  else if(x.type==="sheet"){sqft=toFeet(Number(x.length),unit)*toFeet(Number(x.width),unit)*Q;details={length:Number(x.length),width:Number(x.width),quantity:Q,unit};}
+  else{rft=toFeet(Number(x.length),unit)*Q;details={length:Number(x.length),quantity:Q,unit};}
+  const total=(x.type==="sheet"?sqft:x.type==="rft"?rft:cft)*rate;return {type:x.type,name:x.name||"Scanned Material",cft,sqft,rft,rate,total,measure:cft||sqft||rft,details,id:crypto.randomUUID(),createdAt:new Date(),aiScanned:true};
+}
+async function analyzeAiPhoto(){
+  const file=$("aiPhoto").files?.[0];if(!file){showAiStatus("Choose a measurement photo first.","error");return;}
+  if(!firebaseReady||!currentUser){showAiStatus("Sign in with Google first. AI Scan uses your Firebase account.","error");return;}
+  const btn=$("aiAnalyzeBtn");btn.disabled=true;btn.textContent="Analyzing…";hideAiStatus();
+  try{
+    const prepared=await prepareImage(file);$("aiPreview").src=prepared.preview;$("aiPreviewWrap").classList.remove("hidden");
+    const token=await currentUser.getIdToken();
+    const response=await fetch("/api/analyzeMeasurement",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify({imageBase64:prepared.base64,mimeType:prepared.mimeType})});
+    const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||"AI analysis failed");
+    aiDraftItems=(data.items||[]).map(normalizeAiItem);renderAiResults();$("aiResult").classList.remove("hidden");
+    showAiStatus(aiDraftItems.length?"Gemini found <strong>"+aiDraftItems.length+"</strong> measurement item(s). Review them before adding.":"Gemini could not find clear measurements. Try a closer, brighter photo.","info");
+  }catch(e){console.error(e);showAiStatus(esc(e.message||"AI analysis failed. Check Firebase/Gemini setup."),"error");}
+  finally{btn.disabled=false;btn.textContent="Analyze with Gemini";}
+}
+$("aiPhoto")?.addEventListener("change",async()=>{const f=$("aiPhoto").files?.[0];if(f){const p=await prepareImage(f);$("aiPreview").src=p.preview;$("aiPreviewWrap").classList.remove("hidden");}});
+$("aiRemovePhoto")?.addEventListener("click",()=>{$("aiPhoto").value="";$("aiPreview").src="";$("aiPreviewWrap").classList.add("hidden");aiDraftItems=[];$("aiResult").classList.add("hidden");hideAiStatus();});
+$("aiAnalyzeBtn")?.addEventListener("click",analyzeAiPhoto);$("aiRetryBtn")?.addEventListener("click",()=>$("aiPhoto").click());
+$("aiResultItems")?.addEventListener("input",e=>{const el=e.target.closest("[data-ai]");if(el)aiDraftItems[Number(el.dataset.ai)][el.dataset.field]=el.value;});
+$("aiResultItems")?.addEventListener("change",e=>{const el=e.target.closest("[data-ai]");if(el)aiDraftItems[Number(el.dataset.ai)][el.dataset.field]=el.value;});
+$("aiAddBtn")?.addEventListener("click",()=>{if(!aiDraftItems.length){toast("No AI items to add");return;}if(aiDraftItems.some(x=>!validateAiItem(x))){toast("Complete the missing measurements first");return;}currentItems.push(...aiDraftItems.map(aiItemToCalculated));renderItems();aiDraftItems=[];$("aiResult").classList.add("hidden");showScreen("calculatorScreen");toast("AI measurements added to calculator");});
+
 function renderBill(){
   $("invoiceDate").textContent=new Date().toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});
   $("invoiceCustomer").textContent=$("customerName").value.trim()||"Walk-in Customer";$("invoiceJob").textContent=$("jobName").value.trim()||"Carpenter Job";$("invoiceNotes").textContent=$("billNotes").value.trim();
