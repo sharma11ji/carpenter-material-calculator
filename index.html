@@ -113,6 +113,40 @@
       <button id="saveJobBtn" class="btn primary full" type="button">Save Job / Calculation</button>
     </section>
 
+    <section id="aiScanScreen" class="screen">
+      <div class="section-head">
+        <div><p class="eyebrow">GEMINI AI</p><h2>AI Scan</h2></div>
+      </div>
+      <div class="card ai-hero">
+        <div class="ai-icon">AI</div>
+        <div><strong>Scan a measurement photo</strong><span>Upload a clear photo of written measurements, a measuring tape, or a cutting list.</span></div>
+      </div>
+      <div class="card form-card">
+        <label>Measurement Photo
+          <input id="aiPhoto" type="file" accept="image/*" capture="environment">
+        </label>
+        <div id="aiPreviewWrap" class="ai-preview-wrap hidden">
+          <img id="aiPreview" alt="Measurement preview">
+          <button id="aiRemovePhoto" class="small-btn" type="button">Remove</button>
+        </div>
+        <button id="aiAnalyzeBtn" class="btn primary full" type="button">Analyze with Gemini</button>
+        <p class="muted ai-help">AI reads measurements from the photo. Always check the extracted values before adding them to the calculator.</p>
+      </div>
+      <div id="aiStatus" class="card notice hidden"></div>
+      <div id="aiResult" class="card ai-result hidden">
+        <div class="section-head compact"><div><p class="eyebrow">EXTRACTED DATA</p><h2>Review Result</h2></div></div>
+        <div id="aiResultItems" class="stack"></div>
+        <div class="ai-actions">
+          <button id="aiAddBtn" class="btn primary" type="button">Add to Calculator</button>
+          <button id="aiRetryBtn" class="btn secondary" type="button">Scan Again</button>
+        </div>
+      </div>
+      <div class="card notice">
+        <strong>Important</strong>
+        <p>A normal photo cannot reliably reveal real-world size without a visible measurement reference. For best results, photograph the tape/ruler or clearly written dimensions.</p>
+      </div>
+    </section>
+
     <section id="historyScreen" class="screen">
       <div class="section-head"><div><p class="eyebrow">SAVED WORK</p><h2>History</h2></div><button id="refreshHistoryBtn" class="small-btn" type="button">Refresh</button></div>
       <div class="search-wrap"><input id="historySearch" type="search" placeholder="Search customer, job or item"></div>
@@ -155,6 +189,7 @@
   <nav class="bottom-nav" aria-label="Main navigation">
     <button class="nav-item active" data-screen="calculatorScreen"><span>⌗</span><small>Calculator</small></button>
     <button class="nav-item" data-screen="historyScreen"><span>↺</span><small>History</small></button>
+    <button class="nav-item" data-screen="aiScanScreen"><span>AI</span><small>AI Scan</small></button>
     <button class="nav-item" data-screen="billScreen"><span>▤</span><small>Bill</small></button>
     <button class="nav-item" data-screen="settingsScreen"><span>⚙</span><small>Settings</small></button>
   </nav>
