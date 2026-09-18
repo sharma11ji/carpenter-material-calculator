@@ -2,11 +2,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-/*
-  FIREBASE SETUP
-  Replace the values below with your Firebase Web App configuration.
-  Firebase Console -> Project settings -> Your apps -> Web app -> SDK setup.
-*/
 const firebaseConfig = {
   apiKey: "YOUR_API_KEY",
   authDomain: "YOUR_PROJECT.firebaseapp.com",
@@ -15,160 +10,124 @@ const firebaseConfig = {
   messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
   appId: "YOUR_APP_ID"
 };
-
 const firebaseReady = !Object.values(firebaseConfig).some(v => String(v).startsWith("YOUR_"));
-let auth = null, db = null, currentUser = null;
-if (firebaseReady) {
-  const firebaseApp = initializeApp(firebaseConfig);
-  auth = getAuth(firebaseApp);
-  db = getFirestore(firebaseApp);
+let auth=null, db=null, currentUser=null;
+if(firebaseReady){
+  const app=initializeApp(firebaseConfig); auth=getAuth(app); db=getFirestore(app);
   getRedirectResult(auth).catch(()=>{});
-  onAuthStateChanged(auth, user => {
-    currentUser = user;
-    updateAccountUI();
-    if (user) { loadHistory(); loadEstimates(); }
-    else { renderHistory([]); renderEstimates([]); }
-  });
+  onAuthStateChanged(auth,u=>{currentUser=u;updateAccountUI();if(u)loadHistory();else renderHistory([]);});
 }
+const $=id=>document.getElementById(id);
+const money=n=>"₹"+Number(n||0).toLocaleString("en-IN",{maximumFractionDigits:2});
+const num=id=>Number($(id).value||0);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",""":"&quot;","'":"&#39;"}[c]));
+let roundMode="diameter", currentItems=[], historyData=[], editingHistoryId=null;
 
-const $ = id => document.getElementById(id);
-const money = n => "₹" + Number(n || 0).toLocaleString("en-IN",{maximumFractionDigits:2});
-const num = id => Number($(id).value || 0);
-let lastCalculation = {cft:0, measure:0, rate:0, total:0, type:"cft"};
-let historyData = [], estimateData = [];
-
-function toast(message){ const el=$("toast"); el.textContent=message; el.classList.add("show"); clearTimeout(window.__toast); window.__toast=setTimeout(()=>el.classList.remove("show"),2500); }
+function toast(m){const e=$("toast");e.textContent=m;e.classList.add("show");clearTimeout(window.__toast);window.__toast=setTimeout(()=>e.classList.remove("show"),2500);}
 function updateAccountUI(){
-  const label = currentUser ? (currentUser.displayName || currentUser.email || "Signed in") : "Sign in";
-  $("authBtn").textContent = currentUser ? "Sign out" : "Sign in";
-  $("settingsAuthBtn").textContent = currentUser ? "Sign out" : "Sign in";
-  $("accountStatus").textContent = currentUser ? label : "Not signed in";
-  $("setupNotice").classList.toggle("hidden", firebaseReady);
-  if (!firebaseReady) $("setupNotice").innerHTML = "<strong>Firebase setup needed.</strong><br>Add your Firebase Web App config in <code>app.js</code>. Calculator works now, but cloud history needs Firebase sign-in.";
+  const label=currentUser?(currentUser.displayName||currentUser.email||"Signed in"):"Not signed in";
+  $("authBtn").textContent=currentUser?"Sign out":"Sign in";$("settingsAuthBtn").textContent=currentUser?"Sign out":"Sign in";$("accountStatus").textContent=label;
+  $("setupNotice").classList.toggle("hidden",firebaseReady);
+  if(!firebaseReady)$("setupNotice").innerHTML="<strong>Firebase setup needed.</strong><br>Add your Firebase Web App config in <code>app.js</code>. The calculator works, but cloud History needs Firebase.";
 }
-
-function showScreen(id){
-  document.querySelectorAll(".screen").forEach(s=>s.classList.toggle("active",s.id===id));
-  document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.screen===id));
-  window.scrollTo({top:0,behavior:"smooth"});
-}
+function showScreen(id){document.querySelectorAll(".screen").forEach(s=>s.classList.toggle("active",s.id===id));document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.screen===id));if(id==="billScreen")renderBill();window.scrollTo({top:0,behavior:"smooth"});}
 document.querySelectorAll(".nav-item").forEach(b=>b.addEventListener("click",()=>showScreen(b.dataset.screen)));
 
-$("calcType").addEventListener("change", e=>{
-  const type=e.target.value;
-  $("calculatorTitle").textContent=type==="cft"?"Wood CFT":type==="sqft"?"Square Feet":"Running Feet";
-  $("cftForm").classList.toggle("hidden",type!=="cft");
-  $("sqftForm").classList.toggle("hidden",type!=="sqft");
-  $("rftForm").classList.toggle("hidden",type!=="rft");
-  calculate();
-});
-
-function toFeet(value,unit){ return unit==="feet"?value:unit==="inch"?value/12:unit==="cm"?value/30.48:value/304.8; }
-function toInches(value,unit){ return unit==="inch"?value:unit==="feet"?value*12:unit==="cm"?value/2.54:value/25.4; }
-
-function calculate(){
-  const type=$("calcType").value;
-  let cft=0,measure=0,rate=0,total=0;
-  if(type==="cft"){
-    const L=num("length"),W=num("width"),T=num("thickness"),Q=Math.max(1,num("quantity")),unit=$("dimensionUnit").value;
-    const li=toInches(L,unit),wi=toInches(W,unit),ti=toInches(T,unit);
-    cft=li*wi*ti*Q/1728; rate=num("rate"); total=cft*rate; measure=cft;
-  } else if(type==="sqft"){
-    const L=toFeet(num("sqLength"),$("sqUnit").value),W=toFeet(num("sqWidth"),$("sqUnit").value),Q=Math.max(1,num("sqQuantity"));
-    measure=L*W*Q; rate=0; total=0; cft=0;
-  } else {
-    const L=toFeet(num("rfLength"),$("rfUnit").value),Q=Math.max(1,num("rfQuantity"));
-    measure=L*Q; rate=num("rfRate"); total=measure*rate;
+function toInches(v,u){return u==="inch"?v:u==="feet"?v*12:u==="cm"?v/2.54:u==="mm"?v/25.4:u==="meter"?v*39.3700787:v;}
+function toFeet(v,u){return u==="feet"?v:u==="inch"?v/12:u==="cm"?v/30.48:u==="mm"?v/304.8:u==="meter"?v*3.2808399:v;}
+function calc(){
+  const type=$("calcType").value,name=$("materialName").value.trim()||defaultName(type);
+  let cft=0,sqft=0,rft=0,rate=0,total=0,measure=0,details={};
+  if(type==="cut"){
+    const L=toInches(num("length"),$("dimensionUnit").value),W=toInches(num("width"),$("dimensionUnit").value),T=toInches(num("thickness"),$("dimensionUnit").value),Q=Math.max(1,num("quantity"));
+    cft=L*W*T*Q/1728;rate=num("rate");total=cft*rate;measure=cft;details={length:num("length"),width:num("width"),thickness:num("thickness"),quantity:Q,unit:$("dimensionUnit").value};
+  }else if(type==="round"){
+    const L=toFeet(num("roundLength"),$("roundUnit").value),S=toFeet(num("roundSize"),$("roundUnit").value),Q=Math.max(1,num("roundQuantity"));
+    const diameter=roundMode==="diameter"?S:S/Math.PI;cft=Math.PI*Math.pow(diameter,2)/4*L*Q;rate=num("roundRate");total=cft*rate;measure=cft;details={length:num("roundLength"),size:num("roundSize"),quantity:Q,unit:$("roundUnit").value,roundMode};
+  }else if(type==="sheet"){
+    const L=toFeet(num("sheetLength"),$("sheetUnit").value),W=toFeet(num("sheetWidth"),$("sheetUnit").value),Q=Math.max(1,num("sheetQuantity"));
+    sqft=L*W*Q;rate=num("sheetRate");total=sqft*rate;measure=sqft;details={length:num("sheetLength"),width:num("sheetWidth"),quantity:Q,unit:$("sheetUnit").value};
+  }else{
+    const L=toFeet(num("rfLength"),$("rfUnit").value),Q=Math.max(1,num("rfQuantity"));rft=L*Q;rate=num("rfRate");total=rft*rate;measure=rft;details={length:num("rfLength"),quantity:Q,unit:$("rfUnit").value};
   }
-  lastCalculation={cft,measure,rate,total,type};
-  $("totalCft").textContent=cft.toFixed(2);
-  $("totalCost").textContent=money(total);
-  $("resultMaterial").textContent=type==="cft"?"Wood":type==="sqft"?"Sheet / Surface":"Linear Material";
-  $("resultMeasure").textContent=(type==="cft"?cft:measure).toFixed(2)+(type==="cft"?" CFT":type==="sqft"?" Sq Ft":" RFT");
-  $("resultCft").textContent=cft.toFixed(2)+" CFT";
-  $("resultRate").textContent=money(rate)+(type==="rft"?" / RFT":type==="cft"?" / CFT":"");
-  $("resultTotal").textContent=money(total);
-  return lastCalculation;
+  $("totalCft").textContent=cft.toFixed(2);$("totalCost").textContent=money(total);
+  $("resultMaterial").textContent=name;$("resultMeasure").textContent=(type==="cut"||type==="round"?cft:type==="sheet"?sqft:rft).toFixed(2)+" "+(type==="sheet"?"Sq Ft":type==="rft"?"RFT":"CFT");
+  $("resultCft").textContent=cft.toFixed(2)+" CFT";$("resultRate").textContent=money(rate)+" / "+(type==="sheet"?"Sq Ft":type==="rft"?"RFT":"CFT");$("resultTotal").textContent=money(total);
+  return {type,name,cft,sqft,rft,rate,total,measure,details};
 }
-
-["length","width","thickness","quantity","rate","sqLength","sqWidth","sqQuantity","rfLength","rfQuantity","rfRate"].forEach(id=>$(id).addEventListener("input",calculate));
-$("dimensionUnit").addEventListener("change",calculate); $("sqUnit").addEventListener("change",calculate); $("rfUnit").addEventListener("change",calculate);
-$("calculateBtn").addEventListener("click",()=>{calculate();toast("Calculation updated");});
-
-function clearCalculator(){
-  ["length","width","thickness","rate","sqLength","sqWidth","rfLength","rfRate"].forEach(id=>$(id).value="");
-  ["quantity","sqQuantity","rfQuantity"].forEach(id=>$(id).value="1");
-  calculate(); toast("Calculator cleared");
+function defaultName(t){return t==="cut"?"Cut Wood":t==="round"?"Round Wood":t==="sheet"?"Plywood / Flush Door":"Running Material";}
+function switchFields(){
+  const t=$("calcType").value;$("calculatorTitle").textContent=defaultName(t);
+  [["cutFields","cut"],["roundFields","round"],["sheetFields","sheet"],["rftFields","rft"]].forEach(([id,v])=>$(id).classList.toggle("hidden",t!==v));calc();
 }
-$("clearBtn").addEventListener("click",clearCalculator);
+$("calcType").addEventListener("change",switchFields);
+document.querySelectorAll("input,select,textarea").forEach(e=>{if(!e.id||e.id==="calcType")return;e.addEventListener("input",()=>{if(["customerName","jobName","billNotes"].includes(e.id))return;calc();renderBill();});e.addEventListener("change",()=>{calc();renderBill();});});
+document.querySelectorAll("[data-round-mode]").forEach(b=>b.addEventListener("click",()=>{roundMode=b.dataset.roundMode;document.querySelectorAll("[data-round-mode]").forEach(x=>x.classList.toggle("active",x===b));$("roundSizeLabel").firstChild.textContent=roundMode==="diameter"?"Diameter":"Girth / Circumference";calc();}));
+
+function clearForm(){["materialName","length","width","thickness","rate","roundLength","roundSize","roundRate","sheetLength","sheetWidth","sheetRate","rfLength","rfRate"].forEach(id=>$(id).value="");["quantity","roundQuantity","sheetQuantity","rfQuantity"].forEach(id=>$(id).value="1");calc();toast("Calculator cleared");}
+$("clearBtn").addEventListener("click",clearForm);
+
+function addItem(){
+  const x=calc();
+  if(!x.cft&&!x.sqft&&!x.rft){toast("Enter measurements first");return;}
+  currentItems.push({...x,id:crypto.randomUUID(),createdAt:new Date()});renderItems();toast("Item added");
+}
+$("addItemBtn").addEventListener("click",addItem);
+function renderItems(){
+  $("itemList").innerHTML=currentItems.length?currentItems.map(x=>`<article class="item-card"><div class="history-top"><div><strong>${esc(x.name)}</strong><div class="muted">${labelType(x.type)} • Qty ${x.details.quantity}</div></div><strong>${money(x.total)}</strong></div><div class="history-meta"><span>${x.cft.toFixed(2)} CFT</span><span>${x.sqft.toFixed(2)} Sq Ft</span><span>${money(x.rate)} / unit</span></div><button class="remove-item" data-id="${x.id}" type="button">Remove</button></article>`).join(""):'<div class="empty">No items added. Calculate a material and tap Add Item.</div>';
+  const c=currentItems.reduce((a,x)=>a+x.cft,0),s=currentItems.reduce((a,x)=>a+x.sqft,0),t=currentItems.reduce((a,x)=>a+x.total,0);$("listCft").textContent=c.toFixed(2);$("listSqft").textContent=s.toFixed(2);$("listTotal").textContent=money(t);renderBill();
+}
+function labelType(t){return t==="cut"?"Cut Wood":t==="round"?"Round Wood":t==="sheet"?"Plywood / Flush Door":"Running Feet";}
+$("itemList").addEventListener("click",e=>{const b=e.target.closest(".remove-item");if(!b)return;currentItems=currentItems.filter(x=>x.id!==b.dataset.id);renderItems();});
+$("clearItemsBtn").addEventListener("click",()=>{currentItems=[];renderItems();toast("Item list cleared");});
 
 async function signIn(){
-  if(!firebaseReady){toast("Add Firebase config in app.js first");showScreen("settingsScreen");return;}
-  const provider=new GoogleAuthProvider();
-  try{await signInWithPopup(auth,provider);}
-  catch(e){try{await signInWithRedirect(auth,provider);}catch(err){toast(err.message||"Sign-in failed");}}
+  if(!firebaseReady){toast("Add Firebase config first");showScreen("settingsScreen");return;}
+  try{await signInWithPopup(auth,new GoogleAuthProvider());}catch(e){try{await signInWithRedirect(auth,new GoogleAuthProvider());}catch(err){toast(err.message||"Sign-in failed");}}
 }
-async function toggleAuth(){
-  if(currentUser){await signOut(auth);toast("Signed out");}
-  else await signIn();
-}
-$("authBtn").addEventListener("click",toggleAuth); $("settingsAuthBtn").addEventListener("click",toggleAuth);
+async function toggleAuth(){if(currentUser){await signOut(auth);toast("Signed out");}else await signIn();}
+$("authBtn").addEventListener("click",toggleAuth);$("settingsAuthBtn").addEventListener("click",toggleAuth);
 
-async function saveCalculation(){
-  const calc=calculate();
+async function saveJob(){
+  if(!currentItems.length){addItem();if(!currentItems.length)return;}
   if(!currentUser){toast("Sign in with Google to save cloud history");return;}
-  const data={type:calc.type,cft:Number(calc.cft.toFixed(4)),measure:Number(calc.measure.toFixed(4)),rate:calc.rate,total:Number(calc.total.toFixed(2)),material:calc.type==="cft"?"Wood":calc.type==="sqft"?"Sheet / Surface":"Linear Material",createdAt:serverTimestamp()};
-  try{await addDoc(collection(db,"users",currentUser.uid,"calculations"),data);toast("Saved to Firebase");await loadHistory();}
-  catch(e){console.error(e);toast("Could not save. Check Firestore rules.");}
+  const total=currentItems.reduce((a,x)=>a+x.total,0),cft=currentItems.reduce((a,x)=>a+x.cft,0),sqft=currentItems.reduce((a,x)=>a+x.sqft,0);
+  const data={jobName:$("jobName").value.trim()||"Carpenter Job",customerName:$("customerName").value.trim()||"Walk-in Customer",notes:$("billNotes").value.trim(),items:currentItems.map(({id,createdAt,...x})=>x),total:Number(total.toFixed(2)),cft:Number(cft.toFixed(4)),sqft:Number(sqft.toFixed(4)),createdAt:serverTimestamp()};
+  try{await addDoc(collection(db,"users",currentUser.uid,"calculations"),data);toast("Job saved to Firebase");await loadHistory();showScreen("historyScreen");}catch(e){console.error(e);toast("Save failed. Check Firestore rules.");}
 }
-$("saveBtn").addEventListener("click",saveCalculation);
+$("saveJobBtn").addEventListener("click",saveJob);
 
-function formatDate(ts){if(!ts)return "Just now";const d=ts.toDate?ts.toDate():new Date(ts);return d.toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});}
-function renderHistory(items){
-  historyData=items;
-  const q=$("historySearch").value.trim().toLowerCase();
-  const filtered=items.filter(x=>(x.material+" "+x.type).toLowerCase().includes(q));
-  $("historyList").innerHTML=filtered.length?filtered.map(x=>`<article class="history-card">
-    <div class="history-top"><div><div class="history-title">${escapeHtml(x.material)}</div><div class="muted">${formatDate(x.createdAt)}</div></div><strong>${money(x.total)}</strong></div>
-    <div class="history-value">${Number(x.cft||0).toFixed(2)} CFT</div>
-    <div class="history-meta"><span>Rate: ${money(x.rate)}</span><span>Measure: ${Number(x.measure||0).toFixed(2)}</span></div>
-    <div class="card-actions"><button data-action="view" data-id="${x.id}">View</button><button data-action="edit" data-id="${x.id}">Edit</button><button data-action="delete" data-id="${x.id}">Delete</button></div>
-  </article>`).join(""):'<div class="empty">No saved calculations yet.</div>';
-}
-function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function formatDate(ts){if(!ts)return"Just now";const d=ts.toDate?ts.toDate():new Date(ts);return d.toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});}
 async function loadHistory(){
   if(!currentUser||!db)return;
-  try{const snap=await getDocs(query(collection(db,"users",currentUser.uid,"calculations"),orderBy("createdAt","desc")));renderHistory(snap.docs.map(d=>({id:d.id,...d.data()})));}
-  catch(e){console.error(e);renderHistory([]);toast("History needs a Firestore index/rules check");}
+  try{const snap=await getDocs(query(collection(db,"users",currentUser.uid,"calculations"),orderBy("createdAt","desc")));renderHistory(snap.docs.map(d=>({id:d.id,...d.data()})));}catch(e){console.error(e);renderHistory([]);toast("History could not load. Check Firestore rules.");}
 }
-$("refreshHistoryBtn").addEventListener("click",loadHistory); $("historySearch").addEventListener("input",()=>renderHistory(historyData));
-
+function renderHistory(items){
+  historyData=items;const q=$("historySearch").value.trim().toLowerCase();
+  const f=items.filter(x=>JSON.stringify(x).toLowerCase().includes(q));
+  $("historyList").innerHTML=f.length?f.map(x=>`<article class="history-card"><div class="history-top"><div><div class="history-title">${esc(x.jobName||x.material||"Calculation")}</div><div class="muted">${esc(x.customerName||"")} • ${formatDate(x.createdAt)}</div></div><strong>${money(x.total)}</strong></div><div class="history-value">${Number(x.cft||0).toFixed(2)} CFT</div><div class="history-meta"><span>${Number(x.sqft||0).toFixed(2)} Sq Ft</span><span>${x.items?.length||1} item(s)</span></div><div class="card-actions"><button data-action="view" data-id="${x.id}">View</button><button data-action="edit" data-id="${x.id}">Edit</button><button data-action="delete" data-id="${x.id}">Delete</button></div></article>`).join(""):'<div class="empty">No saved jobs yet.</div>';
+}
+$("refreshHistoryBtn").addEventListener("click",loadHistory);$("historySearch").addEventListener("input",()=>renderHistory(historyData));
 $("historyList").addEventListener("click",async e=>{
   const b=e.target.closest("button");if(!b)return;const item=historyData.find(x=>x.id===b.dataset.id);if(!item)return;
-  if(b.dataset.action==="view"){toast(`${Number(item.cft||0).toFixed(2)} CFT • ${money(item.total)}`);}
-  if(b.dataset.action==="delete"){if(!confirm("Delete this calculation?"))return;try{await deleteDoc(doc(db,"users",currentUser.uid,"calculations",item.id));toast("Deleted");loadHistory();}catch(err){toast("Delete failed");}}
-  if(b.dataset.action==="edit"){$("editId").value=item.id;$("editMaterial").value=item.material||"Wood";$("editRate").value=item.rate||0;$("editDialog").showModal();}
+  if(b.dataset.action==="view"){currentItems=(item.items||[item]).map(x=>({...x,id:crypto.randomUUID()}));$("customerName").value=item.customerName||"";$("jobName").value=item.jobName||"";$("billNotes").value=item.notes||"";renderItems();renderBill();showScreen("billScreen");}
+  if(b.dataset.action==="delete"){if(!confirm("Delete this saved job?"))return;try{await deleteDoc(doc(db,"users",currentUser.uid,"calculations",item.id));toast("Deleted");loadHistory();}catch(err){toast("Delete failed");}}
+  if(b.dataset.action==="edit"){editingHistoryId=item.id;$("editId").value=item.id;$("editMaterial").value=item.jobName||item.material||"Job";$("editRate").value=item.items?.[0]?.rate||item.rate||0;$("editDialog").showModal();}
 });
-$("editSaveBtn").addEventListener("click",async e=>{e.preventDefault();if(!currentUser)return;try{await updateDoc(doc(db,"users",currentUser.uid,"calculations",$("editId").value),{material:$("editMaterial").value.trim()||"Wood",rate:num("editRate"),updatedAt:serverTimestamp()});$("editDialog").close();toast("Updated");loadHistory();}catch(err){toast("Update failed");}});
+$("editSaveBtn").addEventListener("click",async e=>{e.preventDefault();if(!currentUser||!editingHistoryId)return;try{await updateDoc(doc(db,"users",currentUser.uid,"calculations",editingHistoryId),{jobName:$("editMaterial").value.trim()||"Carpenter Job",updatedAt:serverTimestamp()});$("editDialog").close();toast("Updated");loadHistory();}catch(err){toast("Update failed");}});
 
-function estimateTotal(){const t=num("estimateCft")*num("estimateRate");$("estimateTotal").textContent=money(t);return t}
-["estimateCft","estimateRate"].forEach(id=>$(id).addEventListener("input",estimateTotal));
-async function saveEstimate(){
-  if(!currentUser){toast("Sign in with Google to save estimates");return;}
-  const data={customerName:$("customerName").value.trim(),jobName:$("jobName").value.trim()||"Estimate",notes:$("estimateNotes").value.trim(),cft:num("estimateCft"),rate:num("estimateRate"),total:estimateTotal(),createdAt:serverTimestamp()};
-  try{await addDoc(collection(db,"users",currentUser.uid,"estimates"),data);toast("Estimate saved");await loadEstimates();}catch(e){toast("Could not save estimate");}
+function renderBill(){
+  $("invoiceDate").textContent=new Date().toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});
+  $("invoiceCustomer").textContent=$("customerName").value.trim()||"Walk-in Customer";$("invoiceJob").textContent=$("jobName").value.trim()||"Carpenter Job";$("invoiceNotes").textContent=$("billNotes").value.trim();
+  $("invoiceItems").innerHTML=currentItems.length?currentItems.map((x,i)=>`<div class="invoice-row"><span>${i+1}. ${esc(x.name)}</span><span>${x.cft?x.cft.toFixed(2)+" CFT":x.sqft?x.sqft.toFixed(2)+" Sq Ft":x.rft.toFixed(2)+" RFT"} × ${money(x.rate)}</span><strong>${money(x.total)}</strong></div>`).join(""):'<div class="empty">Add items from Calculator to build the bill.</div>';
+  $("invoiceTotal").textContent=money(currentItems.reduce((a,x)=>a+x.total,0));
 }
-$("saveEstimateBtn").addEventListener("click",saveEstimate);
-$("clearEstimateBtn").addEventListener("click",()=>{["customerName","jobName","estimateNotes","estimateCft","estimateRate"].forEach(id=>$(id).value="");estimateTotal();});
-async function loadEstimates(){
-  if(!currentUser||!db)return;
-  try{const snap=await getDocs(query(collection(db,"users",currentUser.uid,"estimates"),orderBy("createdAt","desc")));renderEstimates(snap.docs.map(d=>({id:d.id,...d.data()})));}
-  catch(e){renderEstimates([]);}
-}
-function renderEstimates(items){
-  estimateData=items;
-  $("estimateList").innerHTML=items.length?items.map(x=>`<article class="history-card"><div class="history-top"><div><div class="history-title">${escapeHtml(x.jobName)}</div><div class="muted">${escapeHtml(x.customerName||"No customer")} • ${formatDate(x.createdAt)}</div></div><strong>${money(x.total)}</strong></div><div class="history-meta"><span>${Number(x.cft||0).toFixed(2)} CFT</span><span>${money(x.rate)} / CFT</span></div><p class="muted" style="margin-top:9px">${escapeHtml(x.notes||"")}</p></article>`).join(""):'<div class="empty">No estimates yet.</div>';
-}
+["customerName","jobName","billNotes"].forEach(id=>$(id).addEventListener("input",renderBill));
+$("printBillBtn").addEventListener("click",()=>{renderBill();window.print();});
+$("shareBillBtn").addEventListener("click",async()=>{
+  renderBill();const text=`Carpenter Material Bill\nCustomer: ${$("invoiceCustomer").textContent}\nJob: ${$("invoiceJob").textContent}\nTotal: ${$("invoiceTotal").textContent}`;
+  if(navigator.share){try{await navigator.share({title:"Carpenter Material Bill",text});}catch(e){}}else{await navigator.clipboard?.writeText(text);toast("Bill copied");}
+});
 
-if("serviceWorker" in navigator) window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
-updateAccountUI(); calculate(); estimateTotal();
+switchFields();renderItems();renderBill();updateAccountUI();
+if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
