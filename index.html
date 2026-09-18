@@ -35,19 +35,25 @@
 <body>
 <div id="app">
   <header class="topbar">
-    <div><p class="eyebrow">CARPENTER TOOLS</p><h1>Material Calculator</h1></div>
+    <div><p class="eyebrow">CARPENTER TOOLS</p><h1>What do you want to measure?</h1><p class="top-hint">Pick one option. We’ll guide you step by step.</p></div>
     <button id="authBtn" class="icon-btn" type="button">Sign in</button>
   </header>
 
   <main>
     <section id="calculatorScreen" class="screen active">
+      <div class="quick-choice-grid" aria-label="Choose measurement type">
+        <button class="quick-choice active" data-calc="cut" type="button"><b>WOOD / CFT</b><span>Wood pieces</span><small>Length × Width × Thickness</small></button>
+        <button class="quick-choice" data-calc="sheet" type="button"><b>PLYWOOD / SHEET</b><span>Sheet material</span><small>Length × Width</small></button>
+        <button class="quick-choice" data-calc="rft" type="button"><b>RUNNING FEET</b><span>Long pieces</span><small>Length × Quantity</small></button>
+        <button class="quick-choice" data-calc="round" type="button"><b>ROUND WOOD</b><span>Logs / round wood</span><small>Diameter or girth</small></button>
+      </div>
       <div class="hero-card">
         <div><span class="label">TOTAL VOLUME</span><strong id="totalCft">0.00</strong><small>CFT</small></div>
         <div class="hero-cost"><span class="label">TOTAL COST</span><strong id="totalCost">₹0</strong></div>
       </div>
 
       <div class="section-head">
-        <div><p class="eyebrow">CALCULATOR</p><h2 id="calculatorTitle">Cut Wood</h2></div>
+        <div><p class="eyebrow">STEP BY STEP</p><h2 id="calculatorTitle">Wood / CFT</h2><p class="step-hint">Enter the size of one piece.</p></div>
         <select id="calcType" aria-label="Calculator type">
           <option value="cut">Cut Wood / Size Wood</option>
           <option value="round">Round Wood / Log</option>
@@ -112,7 +118,7 @@
       </div>
 
       <div class="actions">
-        <button id="calculateBtn" class="btn primary" type="button">Calculate</button>
+        <button id="calculateBtn" class="btn primary" type="button">Show Total</button>
         <button id="addItemBtn" class="btn secondary" type="button">Add Item</button>
         <button id="clearBtn" class="btn ghost" type="button">Clear</button>
       </div>
@@ -132,7 +138,7 @@
         <div><span>Total Sq Ft</span><strong id="listSqft">0.00</strong></div>
         <div><span>Total Amount</span><strong id="listTotal">₹0</strong></div>
       </div>
-      <button id="saveJobBtn" class="btn primary full" type="button">Save Job / Calculation</button>
+      <button id="saveJobBtn" class="btn primary full" type="button">Save This Job</button>
     </section>
 
     <section id="aiScanScreen" class="screen">
@@ -209,9 +215,9 @@
   </main>
 
   <nav class="bottom-nav" aria-label="Main navigation">
-    <button class="nav-item active" data-screen="calculatorScreen"><span>⌗</span><small>Calculator</small></button>
-    <button class="nav-item" data-screen="historyScreen"><span>↺</span><small>History</small></button>
-    <button class="nav-item" data-screen="aiScanScreen"><span>AI</span><small>AI Scan</small></button>
+    <button class="nav-item active" data-screen="calculatorScreen"><span>⌂</span><small>Measure</small></button>
+    <button class="nav-item" data-screen="historyScreen"><span>↺</span><small>Saved</small></button>
+    <button class="nav-item ai-nav" data-screen="aiScanScreen"><span>AI</span><small>Photo</small></button>
     <button class="nav-item" data-screen="billScreen"><span>▤</span><small>Bill</small></button>
     <button class="nav-item" data-screen="settingsScreen"><span>⚙</span><small>Settings</small></button>
   </nav>
